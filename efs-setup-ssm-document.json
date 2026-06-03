@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Install AmazonEFSUtils via Distributor on EC2 instances tagged EFS=required | Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. | SPDX-License-Identifier: MIT-0",
+  "parameters": {
+    "EfsFileSystem": {
+      "type": "String",
+      "allowedPattern": "^fs-[0-9a-f]{8,40}$",
+      "maxChars": 64,
+      "description": "EFS File System ID"
+    },
+    "AccessPointApp": {
+      "type": "String",
+      "allowedPattern": "^fsap-[0-9a-f]{8,40}$",
+      "maxChars": 64,
+      "description": "EFS Access Point ID for /app"
+    },
+    "AccessPointData": {
+      "type": "String",
+      "allowedPattern": "^fsap-[0-9a-f]{8,40}$",
+      "maxChars": 64,
+      "description": "EFS Access Point ID for /data"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runDocument",
+      "name": "installEfsUtils",
+      "inputs": {
+        "documentType": "SSMDocument",
+        "documentPath": "AWS-ConfigureAWSPackage",
+        "documentParameters": {
+          "action": "Install",
+          "name": "AmazonEFSUtils"
+        }
+      }
+    },
+    {
+      "action": "aws:runShellScript",
+      "name": "addFstabEntries",
+      "precondition": {
+        "StringEquals": ["platformType", "Linux"]
+      },
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euo pipefail",
+          "EFS_ID='{{ EfsFileSystem }}'",
+          "AP_APP='{{ AccessPointApp }}'",
+          "AP_DATA='{{ AccessPointData }}'",
+          "",
+          "mkdir -p /app /data",
+          "",
+          "APP_ENTRY=\"${EFS_ID}:/ /app efs _netdev,noresvport,tls,accesspoint=${AP_APP} 0 0\"",
+          "DATA_ENTRY=\"${EFS_ID}:/ /data efs _netdev,noresvport,tls,accesspoint=${AP_DATA} 0 0\"",
+          "",
+          "grep -qF \"${AP_APP}\" /etc/fstab || echo \"${APP_ENTRY}\" >> /etc/fstab",
+          "grep -qF \"${AP_DATA}\" /etc/fstab || echo \"${DATA_ENTRY}\" >> /etc/fstab",
+          "",
+          "mount -a -t efs"
+        ]
+      }
+    }
+  ]
+}

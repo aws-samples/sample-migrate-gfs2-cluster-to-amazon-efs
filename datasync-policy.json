@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowEFSAccess",
+      "Effect": "Allow",
+      "Action": [
+        "elasticfilesystem:ClientMount",
+        "elasticfilesystem:ClientWrite",
+        "elasticfilesystem:ClientRootAccess"
+      ],
+      "Resource": "arn:aws:elasticfilesystem:<REGION>:<ACCOUNT_ID>:file-system/<EFS_FILE_SYSTEM_ID>",
+      "Condition": {
+        "StringEquals": {
+          "elasticfilesystem:AccessPointArn": [
+            "arn:aws:elasticfilesystem:<REGION>:<ACCOUNT_ID>:access-point/<ACCESS_POINT_APP_ID>",
+            "arn:aws:elasticfilesystem:<REGION>:<ACCOUNT_ID>:access-point/<ACCESS_POINT_DATA_ID>"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AllowKMSForEFSEncryption",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:<REGION>:<ACCOUNT_ID>:key/<CMK_KEY_ID>",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "elasticfilesystem.<REGION>.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

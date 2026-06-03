@@ -1,0 +1,89 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowRootAccountKeyAdministration",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<ACCOUNT_ID>:root"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowEFSServiceAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "elasticfilesystem.amazonaws.com"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey",
+        "kms:CreateGrant"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "elasticfilesystem.<REGION>.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "AllowDataSyncExecutionRoleAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<ACCOUNT_ID>:role/<DATASYNC_ROLE_NAME>"
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "elasticfilesystem.<REGION>.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "AllowEC2InstanceRoleAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<ACCOUNT_ID>:role/<EC2_INSTANCE_ROLE_NAME>"
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "elasticfilesystem.<REGION>.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "AllowCloudWatchLogsAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logs.<REGION>.amazonaws.com"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "ArnLike": {
+          "kms:EncryptionContext:aws:logs:arn": "arn:aws:logs:<REGION>:<ACCOUNT_ID>:log-group:*"
+        }
+      }
+    }
+  ]
+}

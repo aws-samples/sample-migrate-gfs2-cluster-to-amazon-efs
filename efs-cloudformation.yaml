@@ -1,0 +1,148 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EFS filesystem with 2 AZ mount targets, security group, and two access points (/app and /data)
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to deploy EFS into
+
+  SubnetAz1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet in AZ 1 for EFS mount target
+
+  SubnetAz2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet in AZ 2 for EFS mount target
+
+  AppSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Application security group allowed to access EFS
+
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the customer-managed KMS key (CMK-EFS) for EFS encryption at rest
+    AllowedPattern: "^arn:aws[a-z\\-]*:kms:[a-z0-9\\-]+:\\d{12}:key/[a-f0-9\\-]+$"
+
+Resources:
+  EfsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow NFS traffic from App security group and EFS SecurityGroup
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref AppSecurityGroupId
+      Tags:
+        - Key: Name
+          Value: efs-sg
+
+  EfsSecurityGroupSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EfsSecurityGroup
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      SourceSecurityGroupId: !Ref EfsSecurityGroup
+
+  EfsFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      KmsKeyId: !Ref KmsKeyArn
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting
+      BackupPolicy:
+        Status: ENABLED
+      Tags:
+        - Key: Name
+          Value: efs-filesystem
+
+  MountTargetAz1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EfsFileSystem
+      SubnetId: !Ref SubnetAz1
+      SecurityGroups:
+        - !Ref EfsSecurityGroup
+
+  MountTargetAz2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EfsFileSystem
+      SubnetId: !Ref SubnetAz2
+      SecurityGroups:
+        - !Ref EfsSecurityGroup
+
+  AccessPointApp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref EfsFileSystem
+      RootDirectory:
+        Path: /app
+        CreationInfo:
+          OwnerUid: "1000"
+          OwnerGid: "1000"
+          Permissions: "755"
+      AccessPointTags:
+        - Key: Name
+          Value: efs-ap-app
+
+  AccessPointData:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref EfsFileSystem
+      RootDirectory:
+        Path: /data
+        CreationInfo:
+          OwnerUid: "1000"
+          OwnerGid: "1000"
+          Permissions: "755"
+      AccessPointTags:
+        - Key: Name
+          Value: efs-ap-data
+
+  EfsFileSystemPolicy:
+    Type: AWS::EFS::FileSystemPolicy
+    Properties:
+      FileSystemId: !Ref EfsFileSystem
+      Policy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyNonTLS
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action: "*"
+            Resource: !GetAtt EfsFileSystem.Arn
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+          - Sid: AllowTLSClientAccess
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - elasticfilesystem:ClientMount
+              - elasticfilesystem:ClientWrite
+            Resource: !GetAtt EfsFileSystem.Arn
+            Condition:
+              Bool:
+                "aws:SecureTransport": "true"
+
+Outputs:
+  FileSystemId:
+    Value: !Ref EfsFileSystem
+
+  AccessPointAppId:
+    Value: !Ref AccessPointApp
+
+  AccessPointDataId:
+    Value: !Ref AccessPointData
+
+  EfsSecurityGroupId:
+    Value: !Ref EfsSecurityGroup

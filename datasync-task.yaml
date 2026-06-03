@@ -1,0 +1,102 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+AWSTemplateFormatVersion: "2010-09-09"
+Description: DataSync Task - NFS to EFS
+
+Parameters:
+  NFSServerIP:
+    Type: String
+    Description: IP address of the NFS server
+  DataSyncAgentId:
+    Type: String
+    Description: DataSync agent ID (e.g. agent-0a1b2c3d4e5f6)
+  NFSMountPath:
+    Type: String
+    Description: Mount path on the NFS server
+  EFSAccessPointId:
+    Type: String
+    Description: EFS access point ID (e.g. fsap-0a1b2c3d4)
+  EFSFileSystemId:
+    Type: String
+    Description: EFS file system ID (e.g. fs-0a1b2c3d4)
+  SubnetId:
+    Type: String
+    Description: Subnet ID for EFS mount target
+  EFSSecurityGroupId:
+    Type: String
+    Description: EFS security group ID (e.g. sg-0a1b2c3d4)
+  IAMRoleArn:
+    Type: String
+    Description: IAM role ARN for DataSync to access EFS
+    AllowedPattern: "^arn:aws[a-z\\-]*:iam::\\d{12}:role/.+$"
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the customer-managed KMS key for encryption (EFS and CloudWatch Logs)
+    AllowedPattern: "^arn:aws[a-z\\-]*:kms:[a-z0-9\\-]+:\\d{12}:key/[a-f0-9\\-]+$"
+
+Resources:
+  DataSyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 90
+      KmsKeyId: !Ref KmsKeyArn
+
+  NFSSource:
+    Type: AWS::DataSync::LocationNFS
+    Properties:
+      ServerHostname: !Ref NFSServerIP
+      OnPremConfig:
+        AgentArns:
+          - !Sub "arn:aws:datasync:${AWS::Region}:${AWS::AccountId}:agent/${DataSyncAgentId}"
+      Subdirectory: !Ref NFSMountPath
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  EFSDestination:
+    Type: AWS::DataSync::LocationEFS
+    Properties:
+      EfsFilesystemArn: !Sub "arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/${EFSFileSystemId}"
+      Subdirectory: "/"
+      AccessPointArn: !Sub "arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:access-point/${EFSAccessPointId}"
+      InTransitEncryption: TLS1_2
+      FileSystemAccessRoleArn: !Ref IAMRoleArn
+      Ec2Config:
+        SubnetArn: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${SubnetId}"
+        SecurityGroupArns:
+          - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${EFSSecurityGroupId}"
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  DataSyncTask:
+    Type: AWS::DataSync::Task
+    Properties:
+      Name: !Ref AWS::StackName
+      SourceLocationArn: !Ref NFSSource
+      DestinationLocationArn: !Ref EFSDestination
+      CloudWatchLogGroupArn: !GetAtt DataSyncLogGroup.Arn
+      Options:
+        TransferMode: CHANGED
+        VerifyMode: ONLY_FILES_TRANSFERRED
+        Atime: BEST_EFFORT
+        Mtime: PRESERVE
+        OverwriteMode: ALWAYS
+        PreserveDeletedFiles: REMOVE
+        LogLevel: TRANSFER
+      Schedule:
+        ScheduleExpression: "rate(1 day)"
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+Outputs:
+  TaskArn:
+    Description: ARN of the created DataSync task
+    Value: !Ref DataSyncTask
+  NFSLocationArn:
+    Description: ARN of the NFS source location
+    Value: !Ref NFSSource
+  EFSLocationArn:
+    Description: ARN of the EFS destination location
+    Value: !Ref EFSDestination
