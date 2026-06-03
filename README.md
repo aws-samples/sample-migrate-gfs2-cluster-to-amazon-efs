@@ -1,4 +1,4 @@
-## Code repo
+## Migrate GFS2 cluster to Amazon EFS
 
 This repository contains four scripts that work together to migrate shared storage from an on-premises RHEL 8 GFS2 cluster to Amazon EFS.
 
